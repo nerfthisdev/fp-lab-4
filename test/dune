@@ -1,0 +1,9 @@
+(executable
+ (name test_ocsh)
+ (modes byte)
+ (libraries alcotest ocsh_lib unix))
+
+(rule
+ (alias runtest)
+ (deps test_ocsh.exe)
+ (action (run ./test_ocsh.exe)))

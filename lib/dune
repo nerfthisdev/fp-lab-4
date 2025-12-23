@@ -1,0 +1,4 @@
+(library
+ (name ocsh_lib)
+ (modes byte)
+ (libraries unix compiler-libs.toplevel))

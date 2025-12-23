@@ -1,0 +1,5 @@
+(executable
+ (name ocsh)
+ (public_name ocsh)
+ (modes byte)
+ (libraries ocsh_lib unix))
