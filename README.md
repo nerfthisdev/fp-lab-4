@@ -1,13 +1,25 @@
 # ocsh
 
-OCaml-powered shell runner inspired by babashka. You can run OCaml scripts, drop into a REPL, and call Linux binaries directly from OCaml without boilerplate.
+OCaml-powered shell runner inspired by babashka. You get a REPL that understands OCaml and can call Linux binaries directly, plus a script runner for `.ocsh` files and `-e` expressions.
 
-## What it does
+## What this is for
 
-- Runs OCaml files, `-e` expressions, or stdin.
-- Provides a REPL that accepts OCaml phrases (`;;`) and shell commands (`;;`).
-- Lets you call binaries as OCaml functions: `ls "bin"`, `cat "file.txt"`.
-- Provides a small command monad for chaining shell steps.
+- Use OCaml as a shell scripting language.
+- Combine real shell commands with OCaml parsing, filtering, and composition.
+- Keep command results as strings and transform them with functional pipelines.
+
+## How it works (exact flow)
+
+1) The REPL reads input until it sees `;;`.
+2) It tries to parse and execute the phrase as OCaml.
+3) If OCaml fails with `Unbound value <cmd>`, the phrase is rewritten as a shell call:
+   - `ls "bin"` becomes `__ocsh_bin "ls" ["bin"]`
+   - `let x = ps` becomes `let x = __ocsh_bin "ps" []`
+   - `ps |> f` becomes `(__ocsh_bin "ps" []) |> f`
+4) If rewriting fails and the phrase does not look like OCaml, the line is executed as a raw shell command.
+5) The prelude injects helpers (`sh`, `cmd`, `bin`, `echo`, etc.) into the toplevel so they are always in scope.
+
+This gives you a shell with OCaml syntax and functional composition while still letting you run standard Linux tools.
 
 ## Quick start
 
@@ -43,12 +55,12 @@ Start the REPL:
 dune exec ocsh
 ```
 
-In the REPL, end commands with `;;`:
+In the REPL, end every phrase with `;;`:
 
 ```
 ls ;;
 cd .. ;;
-pwd ;;
+pwd ();;
 ```
 
 OCaml phrases still work:
@@ -59,14 +71,7 @@ ls x;;
 print_endline x;;
 ```
 
-## How it works
-
-- The REPL reads until `;;`.
-- It first tries to parse the input as OCaml.
-- If OCaml parsing fails with an unbound command, it rewrites `cmd arg1 arg2` into a shell call.
-- If the line is not OCaml and not a rewrite, it is executed as a shell line.
-
-## Usage scenarios
+## Usage examples
 
 List files and reuse the output:
 
@@ -94,16 +99,6 @@ let count =
 Printf.printf "lines: %d\n" count;;
 ```
 
-For pipelines, assign the command result first so the rewrite can wrap it:
-
-```
-let count =
-  ps
-  |> String.split_on_char '\n'
-  |> List.length
-;;
-```
-
 Change directories and run commands:
 
 ```
@@ -117,8 +112,8 @@ Chain commands with the monad:
 ```
 let open Cmd in
 let* who = cmd "whoami" [] in
-let* home = cmd "printf" [Sys.getenv "HOME"] in
-return (who ^ ":" ^ home);;
+let* host = cmd "hostname" [] in
+return (who ^ "@" ^ host);;
 ```
 
 Handle failures explicitly:
