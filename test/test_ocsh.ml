@@ -69,6 +69,66 @@ let check_eval_shell_rewrite_pipe () =
   | Ok () -> ()
   | Error msg -> Alcotest.fail msg
 
+let check_eval_shell_rewrite_pipe_args () =
+  let code =
+    "let count = ls \".\" |> String.split_on_char '\\n' |> List.length;;"
+  in
+  match Ocsh_lib.Runner.eval_string code with
+  | Ok () -> ()
+  | Error msg -> Alcotest.fail msg
+
+let check_cmd_monad_map () =
+  let open Ocsh_lib.Ocsh_runtime.Prelude.Cmd in
+  let action =
+    let+ out = cmd "printf" [ "ok" ] in
+    String.uppercase_ascii out
+  in
+  match run action with
+  | Ok value -> Alcotest.(check string) "monad map" "OK" value
+  | Error msg -> Alcotest.fail msg
+
+let check_cmd_monad_fail () =
+  let open Ocsh_lib.Ocsh_runtime.Prelude.Cmd in
+  let action =
+    let* _ = cmd "false" [] in
+    return "ok"
+  in
+  match run action with
+  | Ok _ -> Alcotest.fail "expected failure"
+  | Error _ -> ()
+
+let check_eval_multi_phrases () =
+  let code = "let x = ps;; let y = ls \".\";;" in
+  match Ocsh_lib.Runner.eval_string code with
+  | Ok () -> ()
+  | Error msg -> Alcotest.fail msg
+
+let check_split_phrases_quotes () =
+  let input = "let x = \"a\\\\\";;b\";; let y = 1;;" in
+  let phrases = Ocsh_lib.Ocsh_parser.split_phrases input in
+  Alcotest.(check int) "phrase count" 2 (List.length phrases)
+
+let check_parse_command_pipe () =
+  let open Ocsh_lib.Ocsh_parser in
+  match parse_command ~unbound:"ps" "let x = ps |> String.length;;" with
+  | Some cmd -> (
+      match cmd.suffix with
+      | Some _ -> ()
+      | None -> Alcotest.fail "expected suffix")
+  | None -> Alcotest.fail "expected command"
+
+let check_parse_command_reject () =
+  let open Ocsh_lib.Ocsh_parser in
+  match parse_command ~unbound:"ps" "ps | not_a_pipe" with
+  | Some _ -> Alcotest.fail "should reject"
+  | None -> ()
+
+let check_eval_pipe_no_assign () =
+  let code = "ps |> String.split_on_char '\\n' |> List.length;;" in
+  match Ocsh_lib.Runner.eval_string code with
+  | Ok () -> ()
+  | Error msg -> Alcotest.fail msg
+
 let check_eval_prelude () =
   match Ocsh_lib.Runner.eval_string "let _ = sh \"printf ok\";;" with
   | Ok () -> ()
@@ -100,5 +160,14 @@ let () =
         ; test_case "split phrases" `Quick check_split_phrases
         ; test_case "echo" `Quick check_echo
         ; test_case "eval shell rewrite pipe" `Quick check_eval_shell_rewrite_pipe
+        ; test_case "eval shell rewrite pipe args"
+            `Quick check_eval_shell_rewrite_pipe_args
+        ; test_case "command monad map" `Quick check_cmd_monad_map
+        ; test_case "command monad fail" `Quick check_cmd_monad_fail
+        ; test_case "eval multi phrases" `Quick check_eval_multi_phrases
+        ; test_case "split phrases quotes" `Quick check_split_phrases_quotes
+        ; test_case "parse command pipe" `Quick check_parse_command_pipe
+        ; test_case "parse command reject" `Quick check_parse_command_reject
+        ; test_case "eval pipe no assign" `Quick check_eval_pipe_no_assign
         ] )
     ]
