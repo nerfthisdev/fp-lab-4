@@ -212,24 +212,58 @@ let init () =
 
 let eval_string ?(verbose = false) code =
   init ();
-  let code =
-    let trimmed = String.trim code in
-    if trimmed = "" then ""
-    else if String.length trimmed >= 2
-            && String.sub trimmed (String.length trimmed - 2) 2 = ";;"
-    then code
-    else code ^ ";;"
+  let split_phrases input =
+    let len = String.length input in
+    let buffer = Buffer.create len in
+    let phrases = ref [] in
+    let in_string = ref false in
+    let i = ref 0 in
+    while !i < len do
+      let c = input.[!i] in
+      if !in_string then (
+        Buffer.add_char buffer c;
+        if c = '\\' && !i + 1 < len then (
+          incr i;
+          Buffer.add_char buffer input.[!i])
+        else if c = '"' then in_string := false)
+      else if c = '"' then (
+        in_string := true;
+        Buffer.add_char buffer c)
+      else if c = ';' && !i + 1 < len && input.[!i + 1] = ';' then (
+        Buffer.add_string buffer ";;";
+        phrases := Buffer.contents buffer :: !phrases;
+        Buffer.clear buffer;
+        incr i)
+      else
+        Buffer.add_char buffer c;
+      incr i
+    done;
+    let tail = Buffer.contents buffer in
+    let tail =
+      let trimmed = String.trim tail in
+      if trimmed = "" then ""
+      else if String.length trimmed >= 2
+              && String.sub trimmed (String.length trimmed - 2) 2 = ";;"
+      then tail
+      else tail ^ ";;"
+    in
+    let phrases =
+      if tail = "" then !phrases else tail :: !phrases
+    in
+    List.rev phrases
   in
-  let lexbuf = Lexing.from_string code in
-  match eval_lexbuf ~verbose lexbuf with
-  | Ok () -> Ok ()
-  | Error msg -> (
-      match extract_unbound_value msg with
-      | None -> Error msg
-      | Some unbound -> (
-          match try_rewrite_command ~unbound code with
-          | None -> Error msg
-          | Some rewritten -> eval_lexbuf ~verbose (Lexing.from_string rewritten)))
+  let rec eval_phrases = function
+    | [] -> Ok ()
+    | phrase :: rest ->
+        let trimmed = String.trim phrase in
+        if trimmed = "" then eval_phrases rest
+        else
+          (match eval_phrase_string_with_rewrite ~verbose phrase with
+          | Ok -> eval_phrases rest
+          | Incomplete -> Error "incomplete phrase"
+          | Error msg -> Error msg)
+  in
+  eval_phrases (split_phrases code)
 
 let eval_file ?(verbose = false) path =
   init ();
