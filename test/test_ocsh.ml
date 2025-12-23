@@ -34,6 +34,11 @@ let check_eval_shell_rewrite_ident () =
   | Ok () -> ()
   | Error msg -> Alcotest.fail msg
 
+let check_echo () =
+  match Ocsh_lib.Runner.eval_string "let x = \"hi\";; echo x;;" with
+  | Ok () -> ()
+  | Error msg -> Alcotest.fail msg
+
 let check_cmd_monad () =
   let open Ocsh_lib.Ocsh_runtime.Prelude.Cmd in
   let action =
@@ -42,6 +47,26 @@ let check_cmd_monad () =
   in
   match run action with
   | Ok value -> Alcotest.(check string) "monad output" "ok" value
+  | Error msg -> Alcotest.fail msg
+
+let check_split_phrases () =
+  let input = "let x = 1;; let y = \"a;;b\";;" in
+  let phrases = Ocsh_lib.Ocsh_parser.split_phrases input in
+  Alcotest.(check int) "phrase count" 2 (List.length phrases);
+  match phrases with
+  | [ first; second ] ->
+      Alcotest.(check bool) "first ends" true
+        (String.ends_with ~suffix:";;" first);
+      Alcotest.(check bool) "second ends" true
+        (String.ends_with ~suffix:";;" second)
+  | _ -> Alcotest.fail "unexpected phrase split"
+
+let check_eval_shell_rewrite_pipe () =
+  let code =
+    "let count = ps |> String.split_on_char '\\n' |> List.length;;"
+  in
+  match Ocsh_lib.Runner.eval_string code with
+  | Ok () -> ()
   | Error msg -> Alcotest.fail msg
 
 let check_eval_prelude () =
@@ -72,5 +97,8 @@ let () =
         ; test_case "eval prelude" `Quick check_eval_prelude
         ; test_case "eval error" `Quick check_eval_error
         ; test_case "command monad" `Quick check_cmd_monad
+        ; test_case "split phrases" `Quick check_split_phrases
+        ; test_case "echo" `Quick check_echo
+        ; test_case "eval shell rewrite pipe" `Quick check_eval_shell_rewrite_pipe
         ] )
     ]

@@ -21,30 +21,6 @@ let () =
     else raise (Arg.Bad "only one file argument is allowed")
   in
   Arg.parse options anon_fun usage;
-  let is_ocaml_start line =
-    let trimmed = String.trim line in
-    trimmed = ""
-    || List.exists
-         (fun kw ->
-           let prefix = kw ^ " " in
-           trimmed = kw || String.starts_with ~prefix trimmed)
-         [ "let"
-         ; "type"
-         ; "module"
-         ; "open"
-         ; "if"
-         ; "match"
-         ; "for"
-         ; "while"
-         ; "fun"
-         ; "function"
-         ; "try"
-         ; "class"
-         ; "object"
-         ; "exception"
-         ; "include"
-         ]
-  in
   let run_shell_line line =
     let trimmed = String.trim line in
     if trimmed = "" then ()
@@ -111,12 +87,14 @@ let () =
       let content = Buffer.contents buffer in
       let trimmed = strip_trailing_semis content in
       match Ocsh_lib.Runner.eval_phrase_string_with_rewrite content with
-      | Ocsh_lib.Runner.Ok ->
+      | Ocsh_lib.Runner.Repl_ok ->
+          flush stdout;
           Buffer.clear buffer;
           repl_loop buffer
-      | Ocsh_lib.Runner.Incomplete -> repl_loop buffer
-      | Ocsh_lib.Runner.Error msg ->
-          if trimmed <> "" && not (is_ocaml_start trimmed) then (
+      | Ocsh_lib.Runner.Repl_incomplete -> repl_loop buffer
+      | Ocsh_lib.Runner.Repl_error msg ->
+          if trimmed <> "" && not (Ocsh_lib.Ocsh_parser.is_ocaml_start trimmed)
+          then (
             run_shell_line trimmed;
             Buffer.clear buffer;
             repl_loop buffer)

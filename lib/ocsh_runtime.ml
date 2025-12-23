@@ -60,6 +60,8 @@ module Prelude = struct
 
   let pwd () = Sys.getcwd ()
 
+  let echo s = print_endline s
+
   let run_raw = run
 
   module Cmd = struct
@@ -167,6 +169,9 @@ let cd dir = Unix.chdir dir
 ;;
 
 let pwd () = Sys.getcwd ()
+;;
+
+let echo s = print_endline s
 ;;
 
 let run_raw = run

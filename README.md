@@ -66,6 +66,79 @@ print_endline x;;
 - If OCaml parsing fails with an unbound command, it rewrites `cmd arg1 arg2` into a shell call.
 - If the line is not OCaml and not a rewrite, it is executed as a shell line.
 
+## Usage scenarios
+
+List files and reuse the output:
+
+```
+let files = ls ".";;
+print_string files;;
+```
+
+Echo OCaml variables:
+
+```
+let x = "hello";;
+echo x;;
+```
+
+Functional pipeline style:
+
+```
+let count =
+  ps
+  |> String.split_on_char '\n'
+  |> List.filter (fun s -> s <> "")
+  |> List.length
+;;
+Printf.printf "lines: %d\n" count;;
+```
+
+For pipelines, assign the command result first so the rewrite can wrap it:
+
+```
+let count =
+  ps
+  |> String.split_on_char '\n'
+  |> List.length
+;;
+```
+
+Change directories and run commands:
+
+```
+cd "test";;
+ls ".";;
+pwd ();;
+```
+
+Chain commands with the monad:
+
+```
+let open Cmd in
+let* who = cmd "whoami" [] in
+let* home = cmd "printf" [Sys.getenv "HOME"] in
+return (who ^ ":" ^ home);;
+```
+
+Handle failures explicitly:
+
+```
+let open Cmd in
+match run (cmd "false" []) with
+| Ok _ -> print_endline "ok"
+| Error msg -> prerr_endline ("failed: " ^ msg);;
+```
+
+Mix OCaml logic with shell commands:
+
+```
+let files = ls ".";;
+let lines = String.split_on_char '\n' files;;
+let count = List.length (List.filter (fun s -> s <> "") lines);;
+Printf.printf "files: %d\n" count;;
+```
+
 ## Prelude API
 
 The toplevel defines these helpers by default so they are in scope:
@@ -75,6 +148,7 @@ The toplevel defines these helpers by default so they are in scope:
 - `cmd ?cwd prog args` -> `run` on a quoted argument list
 - `bin ?cwd prog args` -> `stdout` convenience for `cmd`
 - `cd dir` and `pwd ()` helpers
+- `echo s` -> prints an OCaml string with a newline
 
 Example:
 
@@ -110,5 +184,6 @@ dune runtest
 
 - `bin/ocsh.ml` CLI entry point
 - `lib/ocsh_runtime.ml` shell helpers + prelude
+- `lib/ocsh_parser.ml` phrase splitter + command rewriter
 - `lib/runner.ml` OCaml toplevel evaluator + rewrite
 - `test/test_ocsh.ml` Alcotest suite
